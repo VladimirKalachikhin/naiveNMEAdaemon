@@ -24,7 +24,8 @@ Where:
 Example: `-b=tcp://0.0.0.0:2222` - to all interfaces.  
 
 `-i` list of nmea log files, one sentence per string, default sample1.log  
-Example: `-isample1.log` or `-i=sample1AIS.log,forAIStest.nmea`  
+Example: `-isample1.log` or `-i=sample1AIS.log,forAIStest.nmea`   
+or just sample1.log as a last option.
 
 `-t` delay between the log file string sent, microsecunds (1/1 000 000 sec.), default 200000.  
 Example: `-t1000000` is 1 sec delay.  

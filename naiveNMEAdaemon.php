@@ -6,14 +6,25 @@ Required options:
 -i log file name
 -b bind to proto://address:port
 Run:
-$ php naiveNMEAdaemon.php -isample1.log -btcp://127.0.0.1:2222
+$ php naiveNMEAdaemon.php -isample1.log -btcp://127.0.0.1:2222 -t200000 --run=60 --filtering=GGA,GLL,GNS,RMC,VTG,GSA --updsat=12 --updtime --updbearing --updspeed=6 --savesentences=my-new-log
+- complex usage
+or:
+$ php naiveNMEAdaemon.php
+- with default sample file (sample1.log) and default port (2222) on localhost
+or:
+$ php naiveNMEAdaemon.php sample1.log
+- getted log and defaults
 gpsd run to connect this:
 $ gpsd -N -n tcp://192.168.10.10:2222
 */
 $options = getopt("i::t::b::",['run::','filtering::','updsat::','updtime','updbearing','updspeed::','savesentences::']);
 //print_r($options); echo "\n";
-if(!($nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL))) $nmeaFileName = 'sample1.log'; 	// NMEA sentences file name;
+// NMEA sentences file name;
+if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
+elseif(@$argv[1]) $nmeaFileName = filter_var(@end($argv),FILTER_SANITIZE_URL);	// последний аргумент в коммандной строке
+if(!$nmeaFileName) $nmeaFileName = __FILE__ . 'sample1.log';
 $nmeaFileNames = explode(',',$nmeaFileName);
+
 if(!($delay = filter_var(@$options['t'],FILTER_SANITIZE_NUMBER_INT))) $delay = 200000; 	// Min interval between sends sentences, in microseconds. 200000 are semi-realtime for sample1.log
 if(!($bindAddres=filter_var(@$options['b'],FILTER_VALIDATE_DOMAIN))) $bindAddres = "tcp://127.0.0.1:2222"; 	// Daemon's access address;
 if(!($run = filter_var(@$options['run'],FILTER_SANITIZE_NUMBER_INT))) $run = 0; 	// Overall time of work, in seconds. If 0 - infinity.
@@ -310,7 +321,7 @@ function statCollect($nmeaData) {
 global $statCollection;
 $nmeaData1 = substr(trim(str_getcsv($nmeaData)[0]),-3);
 //if(strlen($nmeaData1)<3) echo "\n$nmeaData\n";
-$statCollection["$nmeaData1"]++;
+@$statCollection["$nmeaData1"]++;	// при отсутствии ключа оно выдаёт предупреждение, поэтому @
 /*
 if(strpos($nmeaData,'ALM')!==FALSE) $statCollection['ALM']++;
 elseif(strpos($nmeaData,'AIVDM')!==FALSE) $statCollection['AIVDM']++;
