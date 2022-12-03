@@ -28,7 +28,16 @@ $nmeaFileNames = explode(',',$nmeaFileName);
 if(!($delay = filter_var(@$options['t'],FILTER_SANITIZE_NUMBER_INT))) $delay = 200000; 	// Min interval between sends sentences, in microseconds. 200000 are semi-realtime for sample1.log
 if(!($bindAddres=filter_var(@$options['b'],FILTER_VALIDATE_DOMAIN))) $bindAddres = "tcp://127.0.0.1:2222"; 	// Daemon's access address;
 if(!($run = filter_var(@$options['run'],FILTER_SANITIZE_NUMBER_INT))) $run = 0; 	// Overall time of work, in seconds. If 0 - infinity.
-if(@$options['filtering']) $filtering = explode(',',$options['filtering']);	// GGA,GLL,GNS,RMC,VTG,GSA
+if(@$options['filtering']) {
+	$filtering = explode(',',$options['filtering']);	// те, что пропустить
+	$noFiltering = array();	// те, что не пропускать
+	foreach($filtering as $key => $value){
+		if($value[0]=='x'){
+			$noFiltering[] = substr($value,1);
+			unset($filtering[$key]);
+		}
+	}
+}
 else $filtering = false;
 if(isset($options['updsat'])){		// заменять в GGA нулевое количество видимых спутников на какое-то, если есть координаты -- исправление кривизны gpsd, который не любит нулевого количества спутников
 	if($updSat = filter_var($options['updsat'],FILTER_SANITIZE_NUMBER_INT)) $updSat = sprintf('%02d', $updSat);
@@ -57,7 +66,7 @@ if($nmeaFileName=='sample1.log') {
 	echo "  -t delay between the log file string sent, microsecunds (1/1 000 000 sec.), default 200000\n";
 	echo "  -b bind address:port, default tcp://127.0.0.1:2222\n";
 	echo "  --run overall time of work, in seconds. Default 0 - infinity.\n";
-	echo "  --filtering sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,GSA Default - all sentences.\n";
+	echo "  --filtering sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or send all sentences except in list xVDO,xVDM. Default - all sentences.\n";
 	echo "  --updbearing sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean\n";
 	echo "  --updsat sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
 	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default 10.0\n";
@@ -73,6 +82,7 @@ $r = array(" | "," / "," - "," \ ");
 $i = 0;
 $startAllTime = time();
 $statCollection = array();
+$default_timezone = date_default_timezone_get();
 date_default_timezone_set('UTC');	// чтобы менять время в посылках
 
 $socket = stream_socket_server($bindAddres, $errno, $errstr);
@@ -82,6 +92,7 @@ if (!$socket) {
 echo "\nCreated streem socket server. Go to wait loop.\n";
 echo "\nWe'll send";
 if($filtering) echo " only ".implode(',',$filtering);
+if($noFiltering) echo " except ".implode(',',$noFiltering);
 echo " NMEA sentences";
 //echo " with delay $delay microsecunds between each";
 if($run) echo " during $run second";
@@ -142,6 +153,9 @@ while ($conn) { 	//
 		if($filtering) {
 			if(!in_array($NMEAtype,$filtering)) continue;	// будем посылать только указанное
 		}
+		if($noFiltering) {
+			if(in_array($NMEAtype,$noFiltering)) continue;	// будем посылать только не указанное
+		}
 		//echo "nmeaData=$nmeaData;\n";
 		//echo 'NMEAchecksumm '.NMEAchecksumm(substr($nmeaData,0,-3))."            \n";
 		// Скорость есть в VTG и RMC
@@ -149,7 +163,7 @@ while ($conn) { 	//
 		// fix указан в GSA (активные спутники), но там нет даты???
 		
 		//  Приведение времени к сейчас. Эпоху СЛЕДУЕТ начинать по RMC, и устанавливать
-		// время всего остального равного времени RMC. (Есть ли более приоритетные сообщения?)
+		// время всего остального равного времени RMC. (Есть ли более приоритетные сообщения? ZDA?)
 		// При этом (для gpsd?) время GGA можно установить в пусто, но тогда информация из GGA
 		// не воспринимается?
 		// Если ставить время по GGA -- скорости не будет вообще, даже если она есть в RMC
@@ -254,7 +268,24 @@ while ($conn) { 	//
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			//echo "RMC After |$nmeaData|                                   \n";
 			break;
-
+		
+		case 'ZDA':
+			$nmeaData = substr($nmeaData,0,strrpos($nmeaData,'*'));	// отрежем контрольную сумму
+			$nmea = str_getcsv($nmeaData);	
+			if($updTime){ 	//  Приведение времени к сейчас	
+				$nmea[1] = $time; 	// 
+				$nmea[2] = substr($date,0,2); 	// Day
+				$nmea[3] = substr($date,2,2); 	// Month
+				$nmea[4] = date('Y');	// Year (4 digits)
+				date_default_timezone_set($default_timezone);	// 
+				[$nmea[5],$nmea[6]] = explode(':',date('P'));	// 
+				date_default_timezone_set('UTC');	// 
+			}
+			//echo "ZDA After "; print_r($nmea);
+			$nmeaData = implode(',',$nmea);
+			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
+			break;
+		/*
 		case 'VTG':
 			$nmeaData = substr($nmeaData,0,strrpos($nmeaData,'*'));	// отрежем контрольную сумму
 			$nmea = str_getcsv($nmeaData);	
@@ -275,6 +306,7 @@ while ($conn) { 	//
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			//echo "After |$nmeaData|                                   \n";
 			break;
+		*/
 		default:
 		}
 				

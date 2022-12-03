@@ -17,7 +17,7 @@ Designed for debugging of applications that use **[gpsd](https://gpsd.io/)**  or
 
 ## Usage
 ### Start daemon
-`php naiveNMEAdaemon.php [-i...] [-t...] [-b...] [--run...] [--filtering...] [--updsat...] [--updtime]`  
+`php naiveNMEAdaemon.php [-i...] [-t...] [-b...] [--run...] [--filtering...] [--updsat...] [--updtime] [log_file_name]`  
 
 Where:  
 `-b` bind to transport://address:port, default tcp://127.0.0.1:2222  
@@ -33,8 +33,9 @@ Example: `-t1000000` is 1 sec delay.
 `--run` overall time of work, in seconds. Default 0 - infinity.  
 Example: `--run=30`  
 
-`--filtering` sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,GSA. Default - all sentences.  
-Example: `--filtering=RMC,VDM` - sends coordinates and AIS only.  
+`--filtering` sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or all, except those specified in the list with the 'x' prefix. Default - all sentences.  
+Example: `--filtering=RMC,VDO,VDM` - sends coordinates and AIS only.  
+`--filtering=xVDO,xVDM` - sends all except AIS.  
 
 `--updbearing` sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean.  
 
