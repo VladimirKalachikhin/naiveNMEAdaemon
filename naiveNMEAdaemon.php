@@ -38,7 +38,10 @@ if(@$options['filtering']) {
 		}
 	}
 }
-else $filtering = false;
+else {
+	$filtering = false;
+	$noFiltering = false;
+}
 if(isset($options['updsat'])){		// заменять в GGA нулевое количество видимых спутников на какое-то, если есть координаты -- исправление кривизны gpsd, который не любит нулевого количества спутников
 	if($updSat = filter_var($options['updsat'],FILTER_SANITIZE_NUMBER_INT)) $updSat = sprintf('%02d', $updSat);
 	else $updSat = FALSE; 	// 
@@ -79,7 +82,7 @@ if($nmeaFileName=='sample1.log') {
 
 $strLen = 0;
 $r = array(" | "," / "," - "," \ ");
-$i = 0;
+$ri = 0;
 $startAllTime = time();
 $statCollection = array();
 $default_timezone = date_default_timezone_get();
