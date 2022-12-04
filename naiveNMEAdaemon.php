@@ -126,6 +126,7 @@ foreach($nmeaFileNames as $i => $nmeaFileName){
 if(!$handles) exit("No logs to play, bye.\n");
 echo "\rSending ".implode(',',$nmeaFileNames)." with delay {$delay}ms per string\n";
 echo "\n";
+$enought = false;
 while ($conn) { 	// 
 	foreach($handles as $i => $handle) {
 		if(($run AND ((time()-$startAllTime)>$run))) {
@@ -144,6 +145,10 @@ while ($conn) { 	//
 			if($nStr) {
 				echo "Send $nStr str                         \n";
 				statShow();
+			}
+			if($i == (count($handles)-1)) {
+				$enought = true;
+				if($saveSentences) fclose($sentencesfh);
 			}
 			continue;
 		}
@@ -310,7 +315,7 @@ while ($conn) { 	//
 		default:
 		}
 				
-		if($saveSentences) $res = fwrite($sentencesfh, $nmeaData."\n");	// сохраним в файл
+		if($saveSentences and !$enought) $res = fwrite($sentencesfh, $nmeaData."\n");	// сохраним в файл, из-за $enought будет сохранён только один комплект предложений из всех файлов
 
 		statCollect($nmeaData);
 		//$res = fwrite($conn, $nmeaData . "\r\n");
@@ -334,10 +339,10 @@ while ($conn) { 	//
 		*/
 		$endTime = microtime(TRUE);
 		$nStr++;
-		echo($r[$i]);	// вращающаяся палка
+		echo($r[$ri]);	// вращающаяся палка
 		echo " " . ($endTime-$startTime) . " string $nStr         \r";
-		$i++;
-		if($i>=count($r)) $i = 0;
+		$ri++;
+		if($ri>=count($r)) $ri = 0;
 		usleep($delay);
 	};
 }
@@ -346,7 +351,7 @@ foreach($handles as $handle) {
 }
 @fclose($conn);
 fclose($socket);
-if($saveSentences) fclose($sentencesfh);
+if($saveSentences) @fclose($sentencesfh);
 
 function statCollect($nmeaData) {
 /**/
