@@ -33,9 +33,10 @@ Example: `-t1000000` is 1 sec delay.
 `--run` overall time of work, in seconds. Default 0 - infinity.  
 Example: `--run=30`  
 
-`--filtering` sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or all, except those specified in the list with the 'x' prefix. Default - all sentences.  
+`--filtering` sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or all, except those specified in the list with the 'x' prefix, or all, but some only one from n'th. Default - all sentences.  
 Example: `--filtering=RMC,VDO,VDM` - sends coordinates and AIS only.  
 `--filtering=xVDO,xVDM` - sends all except AIS.  
+--filtering=10DPT,10DBT - sends all, but only one of 10 depth values.
 
 `--updbearing` sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean.  
 

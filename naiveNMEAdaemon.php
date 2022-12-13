@@ -32,11 +32,17 @@ if(@$options['filtering']) {
 	$filtering = explode(',',$options['filtering']);	// те, что пропустить
 	$noFiltering = array();	// те, что не пропускать
 	foreach($filtering as $key => $value){
-		if($value[0]=='x'){
-			$noFiltering[] = substr($value,1);
+		$code = substr($value,0,-3);
+		if($code=='x'){
+			$noFiltering[substr($value,-3)] = array(0,0);
+			unset($filtering[$key]);
+		}
+		elseif($interval = intval($code)) {
+			$noFiltering[substr($value,-3)] = array($interval,0);
 			unset($filtering[$key]);
 		}
 	}
+	//echo('noFiltering:'); print_r($noFiltering);
 }
 else {
 	$filtering = false;
@@ -69,10 +75,10 @@ if($nmeaFileName=='sample1.log') {
 	echo "  -t delay between the log file string sent, microsecunds (1/1 000 000 sec.), default 200000\n";
 	echo "  -b bind address:port, default tcp://127.0.0.1:2222\n";
 	echo "  --run overall time of work, in seconds. Default 0 - infinity.\n";
-	echo "  --filtering sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or send all sentences except in list xVDO,xVDM. Default - all sentences.\n";
+	echo "  --filtering sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or send all sentences except in list xVDO,xVDM, or send only every n'th in list nVDO,nVDM. Default - all sentences.\n";
 	echo "  --updbearing sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean\n";
 	echo "  --updsat sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
-	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default 10.0\n";
+	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default no, or 10.0 if set.\n";
 	echo "  --updtime sets the time in sentences to current, boolean. Default true.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
 	echo "\n";
@@ -95,9 +101,9 @@ if (!$socket) {
 echo "\nCreated streem socket server. Go to wait loop.\n";
 echo "\nWe'll send";
 if($filtering) echo " only ".implode(',',$filtering);
-if($noFiltering) echo " except ".implode(',',$noFiltering);
+if($noFiltering) echo " except (some) ".implode(',',array_keys($noFiltering));
 echo " NMEA sentences";
-//echo " with delay $delay microsecunds between each";
+echo " with delay $delay microsecunds between each";
 if($run) echo " during $run second";
 if($updSat) echo " correcting the number of visible satellites to $updSat";
 if($updSat and $updTime) echo " and";
@@ -129,7 +135,7 @@ foreach($nmeaFileNames as $i => $nmeaFileName){
 if(!$handles) exit("No logs to play, bye.\n");
 echo "\rSending ".implode(',',$nmeaFileNames)." with delay {$delay}ms per string\n";
 echo "\n";
-$enought = false;
+$enought = array();
 while ($conn) { 	// 
 	foreach($handles as $i => $handle) {
 		if(($run AND ((time()-$startAllTime)>$run))) {
@@ -149,7 +155,8 @@ while ($conn) { 	//
 				echo "Send $nStr str                         \n";
 				statShow();
 			}
-			if($i == (count($handles)-1)) {
+			if(is_array($enought)) $enought[] = 1;
+			if(count($enought) == count($handles)) {
 				$enought = true;
 				if($saveSentences) fclose($sentencesfh);
 			}
@@ -161,9 +168,15 @@ while ($conn) { 	//
 		if($filtering) {
 			if(!in_array($NMEAtype,$filtering)) continue;	// будем посылать только указанное
 		}
-		if($noFiltering) {
-			if(in_array($NMEAtype,$noFiltering)) continue;	// будем посылать только не указанное
+		if($noFiltering) {	// будем посылать только не указанное
+			if(@$noFiltering[$NMEAtype]){
+				$noFiltering[$NMEAtype][1]++;
+				//echo($noFiltering[$NMEAtype][0].' '.$noFiltering[$NMEAtype][1]."\n");
+				if($noFiltering[$NMEAtype][0] != $noFiltering[$NMEAtype][1]) continue;	// или раз в указанное число раз
+				$noFiltering[$NMEAtype][1] = 0;	// сбросим счётчик
+			}
 		}
+		//echo "Filtered NMEAtype=$NMEAtype;                                        \n";
 		//echo "nmeaData=$nmeaData;\n";
 		//echo 'NMEAchecksumm '.NMEAchecksumm(substr($nmeaData,0,-3))."            \n";
 		// Скорость есть в VTG и RMC
@@ -249,8 +262,8 @@ while ($conn) { 	//
 			$nmeaData = substr($nmeaData,0,strrpos($nmeaData,'*'));	// отрежем контрольную сумму
 			$nmea = str_getcsv($nmeaData);	
 			//echo "Before ";print_r($nmea);
-			// Хрен его знает, что это за статус, но при V gpsd это предложение игнорирует. А 
-			// SignalK  -- нет.
+			// Хрен его знает, что это за статус, но при V gpsd это предложение игнорирует. 
+			// А SignalK  -- нет.
 			$nmea[2] = 'A'; 	// Status, A = Valid, V = Warning
 			if($updBearing){	// исправление курса
 				$prevRMC[8] = bearing(nmeaLatDegrees($prevRMC[3]),nmeaLonDegrees($prevRMC[5]),nmeaLatDegrees($nmea[3]),nmeaLonDegrees($nmea[5]));
@@ -318,7 +331,7 @@ while ($conn) { 	//
 		default:
 		}
 				
-		if($saveSentences and !$enought) $res = fwrite($sentencesfh, $nmeaData."\n");	// сохраним в файл, из-за $enought будет сохранён только один комплект предложений из всех файлов
+		if($saveSentences and (($enought !== true) or $run) ) $res = fwrite($sentencesfh, $nmeaData."\n");	// сохраним в файл, из-за $enought будет сохранён только один комплект предложений из всех файлов
 
 		statCollect($nmeaData);
 		//$res = fwrite($conn, $nmeaData . "\r\n");
