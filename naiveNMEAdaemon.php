@@ -155,10 +155,12 @@ while ($conn) { 	//
 				echo "Send $nStr str                         \n";
 				statShow();
 			}
-			if(is_array($enought)) $enought[] = 1;
-			if(count($enought) == count($handles)) {
-				$enought = true;
-				if($saveSentences) fclose($sentencesfh);
+			if(is_array($enought)) {
+				$enought[] = 1;
+				if(count($enought) == count($handles)) {
+					$enought = true;
+					if($saveSentences) fclose($sentencesfh);
+				}
 			}
 			continue;
 		}
@@ -185,6 +187,8 @@ while ($conn) { 	//
 		
 		//  Приведение времени к сейчас. Эпоху СЛЕДУЕТ начинать по RMC, и устанавливать
 		// время всего остального равного времени RMC. (Есть ли более приоритетные сообщения? ZDA?)
+		// Garry E. Miller утверждает, что  The PPS is the first thing to come from almost all receivers at the start of an epoch.
+		// PPS (hulse per second) указывается только в GGA из стандартных сообщений.
 		// При этом (для gpsd?) время GGA можно установить в пусто, но тогда информация из GGA
 		// не воспринимается?
 		// Если ставить время по GGA -- скорости не будет вообще, даже если она есть в RMC
