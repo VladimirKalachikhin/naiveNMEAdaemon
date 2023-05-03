@@ -17,7 +17,7 @@ $ php naiveNMEAdaemon.php sample1.log
 gpsd run to connect this:
 $ gpsd -N -n tcp://192.168.10.10:2222
 */
-$options = getopt("i::t::b::",['run::','filtering::','updsat::','updtime','updbearing','updspeed::','savesentences::']);
+$options = getopt("i::t::b::",['run::','filtering::','updsat::','updtime::','updbearing','updspeed::','savesentences::']);
 //print_r($options); echo "\n";
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
@@ -54,6 +54,7 @@ if(isset($options['updsat'])){		// заменять в GGA нулевое кол
 }
 else $updSat = '06';
 if(isset($options['updtime']) and $options['updtime']==FALSE) $updTime = FALSE;	// исправлять время везде, где оно есть, на сейчас
+elseif(is_numeric($options['updtime'])) $updTime = $options['updtime'];
 else $updTime = TRUE;
 if(isset($options['updbearing'])) $updBearing = TRUE;	// в предложениях RMC устанавливать поле 8 Track made good по значению предыдущих координат и координат из этого предложения
 else $updBearing = FALSE;
@@ -108,6 +109,7 @@ if($run) echo " during $run second";
 if($updSat) echo " correcting the number of visible satellites to $updSat";
 if($updSat and $updTime) echo " and";
 if($updTime) echo " correcting the time of message creation to now";
+if(is_numeric($updTime)) echo " plus $updTime sec.";
 if($updBearing) echo ", with setting the 'Track made good' of RMC sentences as the bearing from the previous point";
 if($updSpeed) echo ", with setting the 'Speed over ground' of RMC sentences to ".round($updSpeed/1.852,2)." knots if it's near zero";
 if($saveSentences) echo " and with writing sentences to $saveSentences";
@@ -149,7 +151,7 @@ while ($conn) { 	//
 		}
 		$startTime = microtime(TRUE);
 		$nmeaData = trim(fgets($handle, 2048));	// без конца строки
-		if($nmeaData==FALSE) { 	// достигнут конец файла
+		if(feof($handle)) { 	// достигнут конец файла
 			rewind($handle);
 			if($nStr) {
 				echo "Send $nStr str                         \n";
@@ -188,7 +190,7 @@ while ($conn) { 	//
 		//  Приведение времени к сейчас. Эпоху СЛЕДУЕТ начинать по RMC, и устанавливать
 		// время всего остального равного времени RMC. (Есть ли более приоритетные сообщения? ZDA?)
 		// Garry E. Miller утверждает, что  The PPS is the first thing to come from almost all receivers at the start of an epoch.
-		// PPS (hulse per second) указывается только в GGA из стандартных сообщений.
+		// PPS (pulse per second) указывается только в GGA из стандартных сообщений.
 		// При этом (для gpsd?) время GGA можно установить в пусто, но тогда информация из GGA
 		// не воспринимается?
 		// Если ставить время по GGA -- скорости не будет вообще, даже если она есть в RMC
@@ -282,7 +284,9 @@ while ($conn) { 	//
 			}
 			if($updTime){ 	//  Приведение времени к сейчас	
 				// Время устанавливается только здесь, стало быть, предложения RMC должны быть.	
-				$time = date('His.').str_pad(substr(round(substr(microtime(),0,10),2),2),2,'0');
+				if(is_numeric($updTime)) $time = time() + $updTime;
+				else $time = time();
+				$time = date('His.',$time).str_pad(substr(round(substr(microtime(),0,10),2),2),2,'0');
 				$nmea[1] = $time; 	// 
 				$date = date('dmy');
 				$nmea[9] = $date; 	// 
