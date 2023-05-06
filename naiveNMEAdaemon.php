@@ -22,7 +22,7 @@ $options = getopt("i::t::b::",['run::','filtering::','updsat::','updtime::','upd
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
 elseif(@$argv[1]) $nmeaFileName = filter_var(@end($argv),FILTER_SANITIZE_URL);	// последний аргумент в коммандной строке
-if(!$nmeaFileName) $nmeaFileName = __FILE__ . 'sample1.log';
+if(!$nmeaFileName) $nmeaFileName = __DIR__ . '/sample1.log';
 $nmeaFileNames = explode(',',$nmeaFileName);
 
 if(!($delay = filter_var(@$options['t'],FILTER_SANITIZE_NUMBER_INT))) $delay = 200000; 	// Min interval between sends sentences, in microseconds. 200000 are semi-realtime for sample1.log
