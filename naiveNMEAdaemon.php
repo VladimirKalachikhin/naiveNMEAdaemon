@@ -21,8 +21,8 @@ $options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime
 //print_r($options); echo "\n";
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
-elseif(@$argv[1] and $argv[1][0]!='-') $nmeaFileName = filter_var(@end($argv),FILTER_SANITIZE_URL);	// последний аргумент в коммандной строке
-if(!isset($nmeaFileName)) $nmeaFileName = __DIR__ . '/sample1.log';
+elseif(@$argv[1]) $nmeaFileName = filter_var(@end($argv),FILTER_SANITIZE_URL);	// последний аргумент в коммандной строке
+if(!isset($nmeaFileName) or ($nmeaFileName[0]=='-')) $nmeaFileName = __DIR__ . '/sample1.log';
 $nmeaFileNames = explode(',',$nmeaFileName);
 
 if(!($delay = filter_var(@$options['t'],FILTER_SANITIZE_NUMBER_INT))) $delay = 200000; 	// Min interval between sends sentences, in microseconds. 200000 are semi-realtime for sample1.log
@@ -59,6 +59,7 @@ else $updTime = TRUE;
 if(isset($options['updbearing'])) $updBearing = TRUE;	// в предложениях RMC устанавливать поле 8 Track made good по значению предыдущих координат и координат из этого предложения
 else $updBearing = FALSE;
 $saveSentences = filter_var(@$options['savesentences'],FILTER_SANITIZE_URL); 	// записывать ли предложения NMEA в отдельный файл. Например, результат фильтрации
+
 // км/ч, если в RMC скорость 0, заменять на. 
 // При этом не должно быть предложений GGA, потому что для них gpsd посчитает скорость по времени
 // и рассоянию. Помогает --filtering=RMC
