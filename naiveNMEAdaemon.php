@@ -17,12 +17,12 @@ $ php naiveNMEAdaemon.php sample1.log
 gpsd run to connect this:
 $ gpsd -N -n tcp://192.168.10.10:2222
 */
-$options = getopt("i::t::b::",['run::','filtering::','updsat::','updtime::','updbearing','updspeed::','savesentences::']);
+$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updbearing','updspeed::','savesentences::','wind::']);
 //print_r($options); echo "\n";
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
-elseif(@$argv[1]) $nmeaFileName = filter_var(@end($argv),FILTER_SANITIZE_URL);	// последний аргумент в коммандной строке
-if(!$nmeaFileName) $nmeaFileName = __DIR__ . '/sample1.log';
+elseif(@$argv[1] and $argv[1][0]!='-') $nmeaFileName = filter_var(@end($argv),FILTER_SANITIZE_URL);	// последний аргумент в коммандной строке
+if(!isset($nmeaFileName)) $nmeaFileName = __DIR__ . '/sample1.log';
 $nmeaFileNames = explode(',',$nmeaFileName);
 
 if(!($delay = filter_var(@$options['t'],FILTER_SANITIZE_NUMBER_INT))) $delay = 200000; 	// Min interval between sends sentences, in microseconds. 200000 are semi-realtime for sample1.log
@@ -54,7 +54,7 @@ if(isset($options['updsat'])){		// заменять в GGA нулевое кол
 }
 else $updSat = '06';
 if(isset($options['updtime']) and $options['updtime']==FALSE) $updTime = FALSE;	// исправлять время везде, где оно есть, на сейчас
-elseif(is_numeric($options['updtime'])) $updTime = $options['updtime'];
+elseif(is_numeric(@$options['updtime'])) $updTime = $options['updtime'];
 else $updTime = TRUE;
 if(isset($options['updbearing'])) $updBearing = TRUE;	// в предложениях RMC устанавливать поле 8 Track made good по значению предыдущих координат и координат из этого предложения
 else $updBearing = FALSE;
@@ -66,10 +66,14 @@ if(isset($options['updspeed'])){
 	if(($updSpeed = filter_var($options['updspeed'],FILTER_SANITIZE_NUMBER_FLOAT))=='') $updSpeed = 10;
 }
 else $updSpeed = FALSE;
+if(isset($options['wind'])){
+	$wind = explode(',',$options['wind'],2);
+	if(count($wind)<2) $wind = array(0,10);	// ветер северный
+}
 //echo "filtering=$filtering; saveSentences=$saveSentences; updSpeed=$updSpeed;\n"; var_dump($updSpeed);
 //print_r($filtering);
 
-if($nmeaFileName=='sample1.log') {
+if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$options)) {
 	echo "Usage:\n  php naiveNMEAdaemon.php [-isample1.log] [-t200000] [-btcp://127.0.0.1:2222] [--run0] [--filteringGGA,GLL,GNS,RMC,VTG,GSA] [--updsat6] [--updtime]\n";
 	echo "\n";
 	echo "  -i list of nmea log files, default sample1.log\n";
@@ -78,11 +82,13 @@ if($nmeaFileName=='sample1.log') {
 	echo "  --run overall time of work, in seconds. Default 0 - infinity.\n";
 	echo "  --filtering sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or send all sentences except in list xVDO,xVDM, or send only every n'th in list nVDO,nVDM. Default - all sentences.\n";
 	echo "  --updbearing sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean\n";
-	echo "  --updsat sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
+	echo "  --updsat= sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
 	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default no, or 10.0 if set.\n";
 	echo "  --updtime sets the time in sentences to current, boolean. Default true.\n";
+	echo "  --wind=direction,speed send AIMWV sentences with specified direction. 0-359 int degrees, int m/sec . Default none.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
 	echo "\n";
+	if(array_key_exists('h',$options) or array_key_exists('help',$options)) return;
 	echo "now run naiveNMEAdaemon.php -i$nmeaFileName -t$delay -b$bindAddres --updsat$updSat --updtime$updTime\n\n";
 }
 
@@ -113,6 +119,7 @@ if(is_numeric($updTime)) echo " plus $updTime sec.";
 if($updBearing) echo ", with setting the 'Track made good' of RMC sentences as the bearing from the previous point";
 if($updSpeed) echo ", with setting the 'Speed over ground' of RMC sentences to ".round($updSpeed/1.852,2)." knots if it's near zero";
 if($saveSentences) echo " and with writing sentences to $saveSentences";
+if(isset($wind)) echo " with wind from {$wind[0]}, {$wind[1]} m/sec";
 echo ".\n\n";
 
 echo "Wait for first connection on $bindAddres";
@@ -338,22 +345,9 @@ while ($conn) { 	//
 		*/
 		default:
 		}
-				
-		if($saveSentences and (($enought !== true) or $run) ) $res = fwrite($sentencesfh, $nmeaData."\n");	// сохраним в файл, из-за $enought будет сохранён только один комплект предложений из всех файлов
-
-		statCollect($nmeaData);
-		//$res = fwrite($conn, $nmeaData . "\r\n");
-		$res = fwrite($conn, $nmeaData."\n");
-		if($res===FALSE) {
-			echo "Error write to socket. Break connection\n";
-			fclose($conn);
-			echo "Try to reopen\n";
-			$conn = stream_socket_accept($socket);
-			if(!$conn) {
-				echo "Reopen false\n";
-				break;
-			}
-		}
+		
+		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
+		
 		/*
 		// Периодически будем показывать, какие сентенции были
 		if(($nStr-$statSend)>9) {
@@ -369,6 +363,13 @@ while ($conn) { 	//
 		if($ri>=count($r)) $ri = 0;
 		usleep($delay);
 	};
+			
+	if(isset($wind)){	// добавим ветер после отсылки одного сообщения из всех файлов
+		$nmeaData = "\$WIMWV,{$wind[0]},R,{$wind[1]},M,A";	
+		$nmeaData .= '*'.NMEAchecksumm($nmeaData);
+		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
+	}
+		
 }
 foreach($handles as $handle) {
 	fclose($handle);
@@ -410,6 +411,27 @@ elseif(strpos($nmeaData,'PGRMZ')!==FALSE) $statCollection['PGRMZ']++;
 elseif($nmeaData) $statCollection['other']++;
 */
 } 	// end function statCollect
+
+function sendNMEA($nmeaData){
+global $conn,$socket,$saveSentences,$enought,$run,$sentencesfh;
+if($saveSentences and (($enought !== true) or $run) ) $res = fwrite($sentencesfh, $nmeaData."\n");	// сохраним в файл, из-за $enought будет сохранён только один комплект предложений из всех файлов
+
+//echo "nmeaData=|$nmeaData|               \n";
+statCollect($nmeaData);
+//$res = fwrite($conn, $nmeaData . "\r\n");
+$res = fwrite($conn, $nmeaData."\n");
+if($res===FALSE) {
+	echo "Error write to socket. Break connection\n";
+	fclose($conn);
+	echo "Try to reopen\n";
+	$conn = stream_socket_accept($socket);
+	if(!$conn) {
+		echo "Reopen false\n";
+		return false;
+	}
+}
+return true;
+} // end function sendNMEA()
 
 function statShow() {
 /**/
