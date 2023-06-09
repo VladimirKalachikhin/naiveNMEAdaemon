@@ -386,7 +386,7 @@ while ($conn) { 	//
 				}
 				$windCount = $windDeviationPeriod;
 			}
-			echo "wind direction {$wind[0]}; wind speed {$wind[1]};      \n";
+			//echo "wind direction {$wind[0]}; wind speed {$wind[1]};      \n";
 			$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			$windCount--;
@@ -403,7 +403,9 @@ while ($conn) { 	//
 		$endTime = microtime(TRUE);
 		$nStr++;
 		echo($r[$ri]);	// вращающаяся палка
-		echo " " . ($endTime-$startTime) . " string $nStr         \r";
+		echo " " . ($endTime-$startTime) . " string $nStr";
+		if($windAngle) echo ", wind direction {$wind[0]}, wind speed {$wind[1]}";
+		echo "      \r";
 		$ri++;
 		if($ri>=count($r)) $ri = 0;
 		usleep($delay);
