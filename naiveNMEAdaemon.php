@@ -6,7 +6,7 @@ Required options:
 -i log file name
 -b bind to proto://address:port
 Run:
-$ php naiveNMEAdaemon.php -isample1.log -btcp://127.0.0.1:2222 -t200000 --run=60 --filtering=GGA,GLL,GNS,RMC,VTG,GSA --updsat=12 --updtime --updbearing --updspeed=6 --savesentences=my-new-log
+$ php naiveNMEAdaemon.php -isample1.log -btcp://127.0.0.1:2222 -t200000 --run=60 --filtering=GGA,GLL,GNS,RMC,VTG,GSA --updsat=12 --updtime --updcourse --updspeed=6 --savesentences=my-new-log
 - complex usage
 or:
 $ php naiveNMEAdaemon.php
@@ -17,7 +17,11 @@ $ php naiveNMEAdaemon.php sample1.log
 gpsd run to connect this:
 $ gpsd -N -n tcp://192.168.10.10:2222
 */
-$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updbearing','updspeed::','savesentences::','wind::']);
+$windSpeedDelta = 1.5;	// 
+$windDirDelta = 10;	// 
+$windDeviationPeriod = 30;	// через сколько посылок ветра его параметры будут изменены
+
+$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updcourse','updspeed::','savesentences::','wind::']);
 //print_r($options); echo "\n";
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
@@ -56,8 +60,8 @@ else $updSat = '06';
 if(isset($options['updtime']) and $options['updtime']==FALSE) $updTime = FALSE;	// исправлять время везде, где оно есть, на сейчас
 elseif(is_numeric(@$options['updtime'])) $updTime = $options['updtime'];
 else $updTime = TRUE;
-if(isset($options['updbearing'])) $updBearing = TRUE;	// в предложениях RMC устанавливать поле 8 Track made good по значению предыдущих координат и координат из этого предложения
-else $updBearing = FALSE;
+if(isset($options['updcourse'])) $updCourse = TRUE;	// в предложениях RMC устанавливать поле 8 Track made good по значению предыдущих координат и координат из этого предложения
+else $updCourse = FALSE;
 $saveSentences = filter_var(@$options['savesentences'],FILTER_SANITIZE_URL); 	// записывать ли предложения NMEA в отдельный файл. Например, результат фильтрации
 
 // км/ч, если в RMC скорость 0, заменять на. 
@@ -82,11 +86,11 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 	echo "  -b bind address:port, default tcp://127.0.0.1:2222\n";
 	echo "  --run overall time of work, in seconds. Default 0 - infinity.\n";
 	echo "  --filtering sends only listed sentences from list GGA,GLL,GNS,RMC,VTG,VHW,GSA,HDT,ZDA,VDO,VDM... or send all sentences except in list xVDO,xVDM, or send only every n'th in list nVDO,nVDM. Default - all sentences.\n";
-	echo "  --updbearing sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean\n";
+	echo "  --updcourse sets field 8 'Track made good' of RMC sentences as the bearing from the previous point, boolean\n";
 	echo "  --updsat= sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
 	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default no, or 10.0 if set.\n";
 	echo "  --updtime sets the time in sentences to current, boolean. Default true.\n";
-	echo "  --wind=direction,speed send AIMWV sentences with specified direction. 0-359 int degrees, int m/sec . Default none.\n";
+	echo "  --wind=true direction from N,speed send AIMWV sentences with specified direction. 0-359 int degrees, int m/sec . Default none.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
 	echo "\n";
 	if(array_key_exists('h',$options) or array_key_exists('help',$options)) return;
@@ -117,10 +121,10 @@ if($updSat) echo " correcting the number of visible satellites to $updSat";
 if($updSat and $updTime) echo " and";
 if($updTime) echo " correcting the time of message creation to now";
 if(is_numeric($updTime)) echo " plus $updTime sec.";
-if($updBearing) echo ", with setting the 'Track made good' of RMC sentences as the bearing from the previous point";
+if($updCourse) echo ", with setting the 'Track made good' of RMC sentences as the bearing from the previous point";
 if($updSpeed) echo ", with setting the 'Speed over ground' of RMC sentences to ".round($updSpeed/1.852,2)." knots if it's near zero";
 if($saveSentences) echo " and with writing sentences to $saveSentences";
-if(isset($wind)) echo " with wind from {$wind[0]}, {$wind[1]} m/sec";
+if(isset($wind)) echo " with true wind from {$wind[0]}, {$wind[1]} m/sec";
 echo ".\n\n";
 
 echo "Wait for first connection on $bindAddres";
@@ -146,6 +150,8 @@ if(!$handles) exit("No logs to play, bye.\n");
 echo "\rSending ".implode(',',$nmeaFileNames)." with delay {$delay}ms per string\n";
 echo "\n";
 $enought = array();
+$windCount = $windDeviationPeriod;
+$windAngle = null;
 while ($conn) { 	// 
 	foreach($handles as $i => $handle) {
 		if(($run AND ((time()-$startAllTime)>$run))) {
@@ -222,7 +228,7 @@ while ($conn) { 	//
 			//echo "Before ";print_r($nmea);
 			if(!intval($nmea[7]) and $updSat and $nmea[2]!=NULL and $nmea[4]!=NULL) { 	// есть широта и долгота и нет спутников
 				//echo "GGA: не указано количество спутников, исправляем          \n";
-				$nmea[7] = '06'; 	// будет столько спутников
+				$nmea[7] = $updSat; 	// будет столько спутников
 			}
 			//echo "Исходный момент привязки: {$nmea[1]}                     \n";
 			//echo "GGA: time: $time                     \n";
@@ -260,6 +266,10 @@ while ($conn) { 	//
 			$nmeaData = substr($nmeaData,0,strrpos($nmeaData,'*'));	// отрежем контрольную сумму
 			$nmea = str_getcsv($nmeaData);	
 			//echo "Before ";print_r($nmea);
+			if(!intval($nmea[7]) and $updSat and $nmea[2]!=NULL and $nmea[4]!=NULL) { 	// есть широта и долгота и нет спутников
+				//echo "GNS: не указано количество спутников, исправляем          \n";
+				$nmea[7] = $updSat; 	// будет столько спутников
+			}
 			// Приведение времени к сейчас 
 			if($updTime) {
 				//$time = date('His.').str_pad(substr(round(substr(microtime(),0,10),2),2),2,'0');
@@ -279,13 +289,18 @@ while ($conn) { 	//
 			// Хрен его знает, что это за статус, но при V gpsd это предложение игнорирует. 
 			// А SignalK  -- нет.
 			$nmea[2] = 'A'; 	// Status, A = Valid, V = Warning
-			if($updBearing){	// исправление курса
+			if($updCourse){	// исправление курса
 				$prevRMC[8] = bearing(nmeaLatDegrees($prevRMC[3]),nmeaLonDegrees($prevRMC[5]),nmeaLatDegrees($nmea[3]),nmeaLonDegrees($nmea[5]));
 				$tmp = $nmea;
 				$nmea = $prevRMC;
 				$prevRMC = $tmp;
 				if(!$nmea[0]) continue 2;	// первый оборот, ещё нет всех данных
 			}
+			if(isset($wind) and $nmea[8]){	// вычислим направление ветра
+				$windAngle = $wind[0]-$nmea[8];
+				if($windAngle<0) $windAngle = 360+$windAngle;
+			}
+			else $windAngle = null; 
 			if($updSpeed !== FALSE){	// Изменение скорости
 				//echo "nmea[7]={$nmea[7]}              	\n";
 				if($nmea[7]<0.001) $nmea[7] = round($updSpeed/1.852,2);
@@ -349,6 +364,35 @@ while ($conn) { 	//
 		
 		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
 		
+
+		if($windAngle){	// добавим ветер после отсылки каждого сообщения из каждого файлов
+			
+			if($windCount<=0){	// случайно изменим ветер
+				if(rand()%2) {
+					$wind[0] = $wind[0]+$windDirDelta;
+					if($wind[0]>=360) $wind[0] -= 360;
+				}
+				else {
+					$wind[0] = $wind[0]-$windDirDelta;
+					if($wind[0]<0) $wind[0] += 360;
+				}
+				if(rand()%2) {
+					$wind[1] = $wind[1]+$windSpeedDelta;
+					if($wind[1]>40) $wind[1] = 40;
+				}
+				else {
+					$wind[1] = $wind[1]-$windSpeedDelta;
+					if($wind[1]<0) $wind[1] = 0;
+				}
+				$windCount = $windDeviationPeriod;
+			}
+			echo "wind direction {$wind[0]}; wind speed {$wind[1]};      \n";
+			$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
+			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
+			$windCount--;
+			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
+		}
+	
 		/*
 		// Периодически будем показывать, какие сентенции были
 		if(($nStr-$statSend)>9) {
@@ -364,13 +408,35 @@ while ($conn) { 	//
 		if($ri>=count($r)) $ri = 0;
 		usleep($delay);
 	};
+/*
+	if($windAngle){	// добавим ветер после отсылки одного сообщения из всех файлов
 			
-	if(isset($wind)){	// добавим ветер после отсылки одного сообщения из всех файлов
-		$nmeaData = "\$WIMWV,{$wind[0]},R,{$wind[1]},M,A";	
-		$nmeaData .= '*'.NMEAchecksumm($nmeaData);
-		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
+			if($windCount<=0){	// случайно изменим ветер
+				if(rand()%2) {
+					$wind[0] = $wind[0]+$windDirDelta;
+					if($wind[0]>=360) $wind[0] -= 360;
+				}
+				else {
+					$wind[0] = $wind[0]-$windDirDelta;
+					if($wind[0]<0) $wind[0] += 360;
+				}
+				if(rand()%2) {
+					$wind[1] = $wind[1]+$windSpeedDelta;
+					if($wind[1]>40) $wind[1] = 40;
+				}
+				else {
+					$wind[1] = $wind[1]-$windSpeedDelta;
+					if($wind[1]<0) $wind[1] = 0;
+				}
+				$windCount = $windDeviationPeriod;
+			}
+			
+			$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
+			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
+			$windCount--;
+			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
 	}
-		
+*/	
 }
 foreach($handles as $handle) {
 	fclose($handle);
@@ -459,7 +525,7 @@ return $checksum;
 } // end function NMEAchecksumm
 
 function bearing($lat1,$lon1,$lat2,$lon2) {
-/* азимут направления между двумя точками */
+/* азимут направления между двумя точками, пеленг */
 
 $lat1 = deg2rad($lat1);
 $lon1 = deg2rad($lon1);
