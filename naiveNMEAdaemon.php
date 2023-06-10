@@ -19,6 +19,7 @@ $ gpsd -N -n tcp://192.168.10.10:2222
 */
 $windSpeedDelta = 1.5;	// 
 $windDirDelta = 10;	// 
+$windDeviation = 0.4;
 $windDeviationPeriod = 30;	// через сколько посылок ветра его параметры будут изменены
 
 $options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updcourse','updspeed::','savesentences::','wind::']);
@@ -72,8 +73,10 @@ if(isset($options['updspeed'])){
 }
 else $updSpeed = FALSE;
 if(isset($options['wind'])){
-	$wind = explode(',',$options['wind'],2);
+	$wind = explode(',',$options['wind']);
 	if(count($wind)<2) $wind = array(0,10);	// ветер северный
+	$userWind=$wind;
+	if($wind[2]) $windDeviation = $wind[2];
 }
 //echo "filtering=$filtering; saveSentences=$saveSentences; updSpeed=$updSpeed;\n"; var_dump($updSpeed);
 //print_r($filtering);
@@ -90,7 +93,7 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 	echo "  --updsat= sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
 	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default no, or 10.0 if set.\n";
 	echo "  --updtime sets the time in sentences to current, boolean. Default true.\n";
-	echo "  --wind=true direction from N,speed send AIMWV sentences with specified direction. 0-359 int degrees, int m/sec . Default none.\n";
+	echo "  --wind=true direction,speed,deviation send AIMWV sentences with specified true direction from N, speed and variation. 0-359 int degrees, int m/sec, real < 0. Default none.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
 	echo "\n";
 	if(array_key_exists('h',$options) or array_key_exists('help',$options)) return;
@@ -99,7 +102,7 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 
 
 $strLen = 0;
-$r = array(" | "," / "," - "," \ ");
+$r = array("|","/","-","\\");
 $ri = 0;
 $startAllTime = time();
 $statCollection = array();
@@ -368,21 +371,42 @@ while ($conn) { 	//
 		if($windAngle){	// добавим ветер после отсылки каждого сообщения из каждого файлов
 			
 			if($windCount<=0){	// случайно изменим ветер
-				if(rand()%2) {
-					$wind[0] = $wind[0]+$windDirDelta;
-					if($wind[0]>=360) $wind[0] -= 360;
-				}
-				else {
+				if($wind[0]>($userWind[0]+$userWind[0]*$windDeviation)){	// изменилось больше, чем требуется
 					$wind[0] = $wind[0]-$windDirDelta;
 					if($wind[0]<0) $wind[0] += 360;
 				}
-				if(rand()%2) {
+				elseif($wind[0]<($userWind[0]-$userWind[0]*$windDeviation)){
+					$wind[0] = $wind[0]+$windDirDelta;
+					if($wind[0]>=360) $wind[0] -= 360;
+				}
+				else {			
+					if(rand()%2) {
+						$wind[0] = $wind[0]+$windDirDelta;
+						if($wind[0]>=360) $wind[0] -= 360;
+					}
+					else {
+						$wind[0] = $wind[0]-$windDirDelta;
+						if($wind[0]<0) $wind[0] += 360;
+					}
+				}
+				
+				if($wind[1]>($userWind[1]+$userWind[1]*$windDeviation)){	// изменилось больше, чем требуется
+					$wind[1] = $wind[1]-$windSpeedDelta;
+					if($wind[1]<0) $wind[1] = 0;
+				}
+				elseif($wind[1]<($userWind[1]-$userWind[1]*$windDeviation)){
 					$wind[1] = $wind[1]+$windSpeedDelta;
 					if($wind[1]>40) $wind[1] = 40;
 				}
 				else {
-					$wind[1] = $wind[1]-$windSpeedDelta;
-					if($wind[1]<0) $wind[1] = 0;
+					if(rand()%2) {
+						$wind[1] = $wind[1]+$windSpeedDelta;
+						if($wind[1]>40) $wind[1] = 40;
+					}
+					else {
+						$wind[1] = $wind[1]-$windSpeedDelta;
+						if($wind[1]<0) $wind[1] = 0;
+					}
 				}
 				$windCount = $windDeviationPeriod;
 			}
@@ -412,31 +436,6 @@ while ($conn) { 	//
 	};
 /*
 	if($windAngle){	// добавим ветер после отсылки одного сообщения из всех файлов
-			
-			if($windCount<=0){	// случайно изменим ветер
-				if(rand()%2) {
-					$wind[0] = $wind[0]+$windDirDelta;
-					if($wind[0]>=360) $wind[0] -= 360;
-				}
-				else {
-					$wind[0] = $wind[0]-$windDirDelta;
-					if($wind[0]<0) $wind[0] += 360;
-				}
-				if(rand()%2) {
-					$wind[1] = $wind[1]+$windSpeedDelta;
-					if($wind[1]>40) $wind[1] = 40;
-				}
-				else {
-					$wind[1] = $wind[1]-$windSpeedDelta;
-					if($wind[1]<0) $wind[1] = 0;
-				}
-				$windCount = $windDeviationPeriod;
-			}
-			
-			$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
-			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
-			$windCount--;
-			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
 	}
 */	
 }
