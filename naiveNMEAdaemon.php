@@ -21,8 +21,10 @@ $windSpeedDelta = 1.5;	//
 $windDirDelta = 10;	// 
 $windDeviation = 0.4;
 $windDeviationPeriod = 30;	// через сколько посылок ветра его параметры будут изменены
+$depthDelta = 0.1;	// m
+$depthDeviationPeriod = 10;
 
-$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updcourse','updspeed::','savesentences::','wind::']);
+$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updcourse','updspeed::','savesentences::','wind::','depth::']);
 //print_r($options); echo "\n";
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
@@ -78,6 +80,11 @@ if(isset($options['wind'])){
 	$userWind=$wind;
 	if($wind[2]) $windDeviation = $wind[2];
 }
+if(isset($options['depth'])){
+	$userDepth = explode(',',$options['depth']);
+	if(count($userDepth)<2) $userDepth = array(10,0.5);	// 
+	$depth=$userDepth;
+}
 //echo "filtering=$filtering; saveSentences=$saveSentences; updSpeed=$updSpeed;\n"; var_dump($updSpeed);
 //print_r($filtering);
 
@@ -93,7 +100,8 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 	echo "  --updsat= sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
 	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default no, or 10.0 if set.\n";
 	echo "  --updtime sets the time in sentences to current, boolean. Default true.\n";
-	echo "  --wind=true direction,speed,deviation send AIMWV sentences with specified true direction from N, speed and variation. 0-359 int degrees, int m/sec, real < 0. Default none.\n";
+	echo "  --wind=direction,speed,deviation send \$AIMWV sentences with specified true direction from N, speed and variation. 0-359 int degrees, int m/sec, real < 0. Default none.\n";
+	echo "  --depth=depth,deviation send  \$SDDBT sentences with specified depth and variation. real depth in m, real < 0. Default none.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
 	echo "\n";
 	if(array_key_exists('h',$options) or array_key_exists('help',$options)) return;
@@ -155,6 +163,7 @@ echo "\n";
 $enought = array();
 $windCount = $windDeviationPeriod;
 $windAngle = null;
+$depthCount = $depthDeviationPeriod;
 while ($conn) { 	// 
 	foreach($handles as $i => $handle) {
 		if(($run AND ((time()-$startAllTime)>$run))) {
@@ -411,12 +420,46 @@ while ($conn) { 	//
 				$windCount = $windDeviationPeriod;
 			}
 			//echo "wind direction {$wind[0]}; wind speed {$wind[1]};      \n";
+			// Это баг gpsd: N вместо М и скорости в м/сек.
+			// м/сек gpsd вообще не понимает? Во всяком случает, оно работает правильно, если
+			// указать N и скорость в узлах.
+			//$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
+			// Правильное выражение:	
 			$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			$windCount--;
 			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
 		}
 	
+		if(isset($options['depth'])){	// добавим глубину
+				
+			if($depthCount<=0){	// случайно изменим глубину	
+				if($depth[0]>($userDepth[0]+$userDepth[0]*$userDepth[1])){	// изменилось больше, чем требуется
+					$depth[0] = $depth[0]-$depthDelta;
+					if($depth[0]<0) $depth[0] = 0;
+				}
+				elseif($depth[0]<($userDepth[0]-$userDepth[0]*$userDepth[1])){
+					$depth[0] = $depth[0]+$depthDelta;
+				}
+				else {			
+					if(rand()%2) {
+						$depth[0] = $depth[0]+$userDepth[1];
+					}
+					else {
+						$depth[0] = $depth[0]-$userDepth[1];
+					if($depth[0]<0) $depth[0] = 0;
+					}
+				}
+				$depthCount = $depthDeviationPeriod;
+			}
+			//echo "depth {$depth[0]};      \n";
+			$nmeaData = "\$SDDBT,,f,{$depth[0]},M,,F";	
+			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
+			$depthCount--;
+			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
+			
+		}
+
 		/*
 		// Периодически будем показывать, какие сентенции были
 		if(($nStr-$statSend)>9) {
@@ -428,16 +471,13 @@ while ($conn) { 	//
 		$nStr++;
 		echo($r[$ri]);	// вращающаяся палка
 		echo " " . ($endTime-$startTime) . " string $nStr";
-		if($windAngle) echo ", wind direction {$wind[0]}, wind speed {$wind[1]}";
-		echo "      \r";
+		if($windAngle) echo ", wind: direction {$wind[0]}, speed {$wind[1]}";
+		if(isset($options['depth'])) echo " depth ".round($depth[0],1);
+		echo "   \r";
 		$ri++;
 		if($ri>=count($r)) $ri = 0;
 		usleep($delay);
 	};
-/*
-	if($windAngle){	// добавим ветер после отсылки одного сообщения из всех файлов
-	}
-*/	
 }
 foreach($handles as $handle) {
 	fclose($handle);
