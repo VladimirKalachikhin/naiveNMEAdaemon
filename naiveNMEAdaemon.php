@@ -423,9 +423,9 @@ while ($conn) { 	//
 			// Это баг gpsd: N вместо М и скорости в м/сек.
 			// м/сек gpsd вообще не понимает? Во всяком случает, оно работает правильно, если
 			// указать N и скорость в узлах.
-			//$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
+			$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
 			// Правильное выражение:	
-			$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
+			//$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			$windCount--;
 			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
