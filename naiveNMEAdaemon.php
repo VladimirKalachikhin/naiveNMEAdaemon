@@ -377,7 +377,7 @@ while ($conn) { 	//
 		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
 		
 
-		if($windAngle){	// добавим ветер после отсылки каждого сообщения из каждого файлов
+		if($windAngle){	// добавим ветер после отсылки каждого сообщения RMC
 			
 			if($windCount<=0){	// случайно изменим ветер
 				if($wind[0]>($userWind[0]+$userWind[0]*$windDeviation)){	// изменилось больше, чем требуется
@@ -423,9 +423,11 @@ while ($conn) { 	//
 			// Это баг gpsd: N вместо М и скорости в м/сек.
 			// м/сек gpsd вообще не понимает? Во всяком случает, оно работает правильно, если
 			// указать N и скорость в узлах.
-			$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
+			//$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
+			//$nmeaData = "\$WIMWV,$windAngle,T,".($wind[1]*1.943844494).",N,A";
 			// Правильное выражение:	
 			//$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
+			$nmeaData = "\$WIMWV,$windAngle,T,{$wind[1]},M,A";	
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			$windCount--;
 			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
@@ -470,8 +472,8 @@ while ($conn) { 	//
 		$endTime = microtime(TRUE);
 		$nStr++;
 		echo($r[$ri]);	// вращающаяся палка
-		echo " " . ($endTime-$startTime) . " string $nStr";
-		if($windAngle) echo ", wind: direction {$wind[0]}, speed {$wind[1]}";
+		echo " " . ($endTime-$startTime) . " str# $nStr";
+		if($windAngle) echo ", wind: dir {$wind[0]}, speed {$wind[1]}";
 		if(isset($options['depth'])) echo " depth ".round($depth[0],1);
 		echo "   \r";
 		$ri++;
