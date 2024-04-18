@@ -1,5 +1,5 @@
 [Русское описание](https://github.com/VladimirKalachikhin/naiveNMEAdaemon/blob/master/README.ru-RU.md)
-# naiveNMEAdaemon [![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
+# naiveNMEAdaemon [![License: GPLv3](https://www.gnu.org/graphics/gplv3-88x31.png)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 This is the simple web daemon to broadcast NMEA sentences from the given files.
 Designed for debugging of applications that use **[gpsd](https://gpsd.io/)**  or **[SignalK](https://signalk.org/)**.

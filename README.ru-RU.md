@@ -1,5 +1,5 @@
 [In English](https://github.com/VladimirKalachikhin/naiveNMEAdaemon/blob/master/README.md)
-# naiveNMEAdaemon [![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
+# naiveNMEAdaemon [![License: GPLv3](https://www.gnu.org/graphics/gplv3-88x31.png)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 Простой проигрыватель файлов NMEA с сетевым интерфейсом для отладки приложений, основанных на **[gpsd](https://gpsd.io/)**  или **[SignalK](https://signalk.org/)**.
 
