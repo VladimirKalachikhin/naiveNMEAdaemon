@@ -1,0 +1,44 @@
+#!/bin/bash
+# Start sumulation with NMEA log in first parameter.
+# in not get first parameter - with sveden-finland.nmea
+
+if [ -f "$1" ]
+then
+	NMEAlog=$1
+else
+	NMEAlog="sveden-finland.nmea"
+fi
+echo "Trying to start simulation with $NMEAlog"
+
+# For Raspberry Pi !
+#sudo systemctl stop gpsd
+#sudo systemctl stop gpsd.socket
+killall gpsd
+
+BASEDIR=$(dirname "$0")
+cd  "$BASEDIR"
+
+# inetAIS
+#if ! pgrep -f inetAIS.php  > /dev/null	# следует указать возможно полную строку для поиска, ибо в пути тоже может быть та же фраза, и тогда будет весело
+#then
+	#/GaladrielMap/digitraffic/start -d
+#	../digitraffic/start -d
+#fi
+# Но проще так:
+pkill -f inetAIS.php
+
+#naiveNMEAdaemon=$(pgrep -f naiveNMEAdaemon.php)	
+#pgrep -fax naiveNMEAdaemon
+#echo "PID=$naiveNMEAdaemon"
+#if [ -n "$naiveNMEAdaemon" ]
+#then
+#	echo "naiveNMEAdaemon is run, kill it"
+#	kill $naiveNMEAdaemon
+#fi
+pkill -f naiveNMEAdaemon.php	
+
+php naiveNMEAdaemon.php -t500000 --wind=135,7.5,0.5 --depth=30,0.7 sveden-finland.nmea  > /dev/null 2>&1 &
+sleep 1
+gpsd -G -n tcp://localhost:2222
+
+echo "Simulation started. Probably."

@@ -79,6 +79,8 @@ if(isset($options['wind'])){
 	if(count($wind)<2) $wind = array(0,10);	// ветер северный
 	$userWind=$wind;
 	if($wind[2]) $windDeviation = $wind[2];
+	if($wind[3]=='T') $windTrue = 'T';
+	else $windTrue = 'R';
 }
 if(isset($options['depth'])){
 	$userDepth = explode(',',$options['depth']);
@@ -100,7 +102,7 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 	echo "  --updsat= sets specified number of satellites in GGA sentence if fix present, but number of satellites is 0. Default 6.\n";
 	echo "  --updspeed sets field 7 'Speed over ground' of RMC sentences to the specified value if it is near zero. In km/h, real. Default no, or 10.0 if set.\n";
 	echo "  --updtime sets the time in sentences to current, boolean. Default true.\n";
-	echo "  --wind=direction,speed,deviation send \$AIMWV sentences with specified true direction from N, speed and variation. 0-359 int degrees, int m/sec, real < 0. Default none.\n";
+	echo "  --wind=direction,speed,deviation,trueWind send \$AIMWV sentences with specified true or apparent direction from N, speed and variation. 0-359 int degrees, int m/sec, real < 0, T. Default none.\n";
 	echo "  --depth=depth,deviation send  \$SDDBT sentences with specified depth and variation. real depth in m, real < 0. Default none.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
 	echo "\n";
@@ -135,11 +137,16 @@ if(is_numeric($updTime)) echo " plus $updTime sec.";
 if($updCourse) echo ", with setting the 'Track made good' of RMC sentences as the bearing from the previous point";
 if($updSpeed) echo ", with setting the 'Speed over ground' of RMC sentences to ".round($updSpeed/1.852,2)." knots if it's near zero";
 if($saveSentences) echo " and with writing sentences to $saveSentences";
-if(isset($wind)) echo " with true wind from {$wind[0]}, {$wind[1]} m/sec";
+if(isset($wind)) {
+	echo " with ";
+	if($windTrue=='T') echo "true wind";
+	else echo "apparent wind";
+	echo " from {$wind[0]}, {$wind[1]} m/sec";
+}
 echo ".\n\n";
 
 echo "Wait for first connection on $bindAddres";
-$conn = stream_socket_accept($socket);
+$conn = stream_socket_accept($socket,-1);	// -1 -- бесконечно ждать соединения
 
 $nStr = 0; 	// number of sending string
 $statSend = 0;
@@ -420,14 +427,17 @@ while ($conn) { 	//
 				$windCount = $windDeviationPeriod;
 			}
 			//echo "wind direction {$wind[0]}; wind speed {$wind[1]};      \n";
+			if($windTrue)
 			// Это баг gpsd: N вместо М и скорости в м/сек.
 			// м/сек gpsd вообще не понимает? Во всяком случает, оно работает правильно, если
 			// указать N и скорость в узлах.
 			//$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
 			//$nmeaData = "\$WIMWV,$windAngle,T,".($wind[1]*1.943844494).",N,A";
+			//$nmeaData = "\$WIMWV,$windAngle,$windTrue,".($wind[1]*1.943844494).",N,A";
 			// Правильное выражение:	
 			//$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
-			$nmeaData = "\$WIMWV,$windAngle,T,{$wind[1]},M,A";	
+			//$nmeaData = "\$WIMWV,$windAngle,T,{$wind[1]},M,A";	
+			$nmeaData = "\$WIMWV,$windAngle,$windTrue,{$wind[1]},M,A";	
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			$windCount--;
 			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
@@ -473,7 +483,7 @@ while ($conn) { 	//
 		$nStr++;
 		echo($r[$ri]);	// вращающаяся палка
 		echo " " . ($endTime-$startTime) . " str# $nStr";
-		if($windAngle) echo ", wind: dir {$wind[0]}, speed {$wind[1]}";
+		if($windAngle) echo ", wind: $windTrue dir {$wind[0]}, speed {$wind[1]}";
 		if(isset($options['depth'])) echo " depth ".round($depth[0],1);
 		echo "   \r";
 		$ri++;
@@ -534,7 +544,7 @@ if($res===FALSE) {
 	echo "Error write to socket. Break connection\n";
 	fclose($conn);
 	echo "Try to reopen\n";
-	$conn = stream_socket_accept($socket);
+	$conn = stream_socket_accept($socket,-1);
 	if(!$conn) {
 		echo "Reopen false\n";
 		return false;
