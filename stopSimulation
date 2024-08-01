@@ -1,0 +1,12 @@
+#!/bin/bash
+# 
+# 
+
+# For Raspberry Pi !
+#sudo systemctl stop gpsd
+#sudo systemctl stop gpsd.socket
+killall gpsd
+pkill -f inetAIS.php
+pkill -f naiveNMEAdaemon.php	
+
+echo "Simulation stopped. Probably."
