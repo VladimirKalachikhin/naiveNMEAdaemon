@@ -19,13 +19,13 @@ BASEDIR=$(dirname "$0")
 cd  $BASEDIR
 
 # gpsdPROXY 
-if [ -d "/Galadrielmap" ]
+if [ -d "/GaladrielMap" ]
 then
-	DIRprefix="/Galadrielmap"
-	cd /Galadrielmap/map/gpsdPROXY
+	DIRprefix="/GaladrielMap"
+	cd $DIRprefix/map/gpsdPROXY
 else
 	DIRprefix=".."
-	cd ../gpsdPROXY
+	cd $DIRprefix/gpsdPROXY
 fi
 php=$(grep '^$phpCLIexec' params.php) 
 # вырезать то, что между кавычками иначе не получается
@@ -36,7 +36,8 @@ php=${php:0:$i-1}
 
 $php gpsdPROXY.php > /dev/null 2>&1 &
 
-echo $php $BASEDIR $PWD
+#echo $php $DIRprefix $BASEDIR $PWD
+
 # Источник данных
 # gpsdPROXY к нему подключится сам
 pkill -f naiveNMEAdaemon.php	
