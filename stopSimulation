@@ -8,5 +8,6 @@
 killall gpsd
 pkill -f inetAIS.php
 pkill -f naiveNMEAdaemon.php	
+pkill -f eqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion
 
 echo "Simulation stopped. Probably."

@@ -13,12 +13,15 @@ echo "Trying to start simulation with $NMEAlog"
 # For Raspberry Pi !
 #sudo systemctl stop gpsd
 #sudo systemctl stop gpsd.socket
+echo "Killing gpsd..."
 killall gpsd
 
 BASEDIR=$(dirname "$0")
+BASEDIR=$(realpath "$BASEDIR")
 cd  $BASEDIR
 
 # gpsdPROXY 
+echo "gpsdPROXY starting..."
 if [ -d "/GaladrielMap" ]
 then
 	DIRprefix="/GaladrielMap"
@@ -34,26 +37,31 @@ php=${php:$i}	# вырезать от i до конца строки
 i=$(expr index "$php" "\['"]\")
 php=${php:0:$i-1}
 
-$php gpsdPROXY.php > /dev/null 2>&1 &
-
-#echo $php $DIRprefix $BASEDIR $PWD
+#$php gpsdPROXY.php > /dev/null 2>&1 &
+#echo "php=$php; DIRprefix=$DIRprefix; BASEDIR=$BASEDIR; PWD=$PWD;"
 
 # Источник данных
 # gpsdPROXY к нему подключится сам
+echo "naiveNMEAdaemon starting..."
 pkill -f naiveNMEAdaemon.php	
 cd  $BASEDIR
 $php naiveNMEAdaemon.php -t500000 --wind=135,7.5,0.5 --depth=30,0.7 $NMEAlog > /dev/null 2>&1 &
 sleep 1
+echo "gpsd starting..."
 gpsd -G -n tcp://localhost:2222
 
 
 # netAIS, demo server
+# оно запустит gpsdPROXY
+echo "netAISclient starting..."
 pkill -f eqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion
 cd $DIRprefix/netAIS
-$php netAISclient.php -seqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion > /dev/null 2>&1 &
+#$php netAISclient.php -seqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion > /dev/null 2>&1 &
+sleep 1
 
 
 # inetAIS - AIS из интернета. После gpsdPROXY
+echo "inetAIS starting..."
 #if ! pgrep -f inetAIS.php  > /dev/null	# следует указать возможно полную строку для поиска, ибо в пути тоже может быть та же фраза, и тогда будет весело
 #then
 	#/GaladrielMap/digitraffic/start -d
@@ -62,6 +70,6 @@ $php netAISclient.php -seqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad
 # Но проще так:
 pkill -f inetAIS.php
 cd  $BASEDIR
-$DIRprefix/digitraffic/start -d
+#$DIRprefix/digitraffic/start -d
 
 echo "Simulation started. Probably."
