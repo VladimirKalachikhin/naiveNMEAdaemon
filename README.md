@@ -13,11 +13,12 @@ Designed for debugging of applications that use **[gpsd](https://gpsd.io/)**  or
 * Sets number of satellites to specified.
 * Sets speed to specified.
 * Sets time in sentences to current.
+* Add AIS SART messages
 * Allows to save the resulting stream to a file.
 
 ## Usage
 ### Start daemon
-`php naiveNMEAdaemon.php [-i...] [-t...] [-b...] [--run...] [--filtering...] [--updsat...] [--updtime] [log_file_name]`  
+`php naiveNMEAdaemon.php [-i...] [-t...] [-b...] [--run...] [--filtering...] [--updsat...] [--updtime] [--sart[=sart_data.php]] [--savesentences[=resulting.nmea]] [log_file_name]`  
 
 Where:  
 `-b` bind to transport://address:port, default tcp://127.0.0.1:2222  
@@ -46,6 +47,8 @@ Example: `--filtering=RMC,VDO,VDM` - sends coordinates and AIS only.
 Example: `--updspeed=15` 
 
 `--updtime` sets the time in sentences to current, boolean. Default true.  
+
+`--sart=sart_data.php` add a AIS SART (Search and Rescue Transmitter) sentences to a NMEA flow from sart_data.php, default - SARTsample.php. See this file to detail.
 
 `--savesentences` write NMEA sentences to the given file.  
 Example: `--savesentences=resulting.nmea`  

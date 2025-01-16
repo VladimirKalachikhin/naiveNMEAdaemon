@@ -24,7 +24,7 @@ $windDeviationPeriod = 30;	// через сколько посылок ветр�
 $depthDelta = 0.1;	// m
 $depthDeviationPeriod = 10;
 
-$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updcourse','updspeed::','savesentences::','wind::','depth::']);
+$options = getopt("i::t::b::h",['help','run::','filtering::','updsat::','updtime::','updcourse','updspeed::','savesentences::','wind::','depth::','sart::']);
 //print_r($options); echo "\n";
 // NMEA sentences file name;
 if(@$options['i']) $nmeaFileName = filter_var(@$options['i'],FILTER_SANITIZE_URL);
@@ -66,7 +66,12 @@ else $updTime = TRUE;
 if(isset($options['updcourse'])) $updCourse = TRUE;	// в предложениях RMC устанавливать поле 8 Track made good по значению предыдущих координат и координат из этого предложения
 else $updCourse = FALSE;
 $saveSentences = filter_var(@$options['savesentences'],FILTER_SANITIZE_URL); 	// записывать ли предложения NMEA в отдельный файл. Например, результат фильтрации
-
+if(isset($options['sart'])){ 	// добавлять ли предложения AIS SART для точек из указанного файла
+	if(!($SARTdataFile = filter_var(@$options['sart'],FILTER_SANITIZE_URL))) $SARTdataFile = 'SARTsample.php';
+	include($SARTdataFile);
+	if($SARTdata) require "fAIS.php";
+	$SARTpoints = array_keys($SARTdata);	// массив mmsi
+};
 // км/ч, если в RMC скорость 0, заменять на. 
 // При этом не должно быть предложений GGA, потому что для них gpsd посчитает скорость по времени
 // и рассоянию. Помогает --filtering=RMC
@@ -76,7 +81,7 @@ if(isset($options['updspeed'])){
 else $updSpeed = FALSE;
 if(isset($options['wind'])){
 	$wind = explode(',',$options['wind']);
-	if(count($wind)<2) $wind = array(0,10);	// ветер северный
+	if(count($wind)<2) $wind = array(0.0,10.0);	// ветер северный
 	$userWind=$wind;
 	if($wind[2]) $windDeviation = $wind[2];
 	if($wind[3]=='T') $windTrue = 'T';
@@ -84,7 +89,7 @@ if(isset($options['wind'])){
 }
 if(isset($options['depth'])){
 	$userDepth = explode(',',$options['depth']);
-	if(count($userDepth)<2) $userDepth = array(10,0.5);	// 
+	if(count($userDepth)<2) $userDepth = array(10.0,0.5);	// 
 	$depth=$userDepth;
 }
 //echo "filtering=$filtering; saveSentences=$saveSentences; updSpeed=$updSpeed;\n"; var_dump($updSpeed);
@@ -105,6 +110,7 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 	echo "  --wind=direction,speed,deviation,trueWind send \$AIMWV sentences with specified true or apparent direction from N, speed and variation. 0-359 int degrees, int m/sec, real < 0, T. Default none.\n";
 	echo "  --depth=depth,deviation send  \$SDDBT sentences with specified depth and variation. real depth in m, real < 0. Default none.\n";
 	echo "  --savesentences writes NMEA sentences to file\n";
+	echo "  --sart=SARTsample.php include AIS SART sentences for points from the SARTsample.php\n";
 	echo "\n";
 	if(array_key_exists('h',$options) or array_key_exists('help',$options)) return;
 	echo "now run naiveNMEAdaemon.php -i$nmeaFileName -t$delay -b$bindAddres --updsat$updSat --updtime$updTime\n\n";
@@ -119,11 +125,6 @@ $statCollection = array();
 $default_timezone = date_default_timezone_get();
 date_default_timezone_set('UTC');	// чтобы менять время в посылках
 
-$socket = stream_socket_server($bindAddres, $errno, $errstr);
-if (!$socket) {
-  return "$errstr ($errno)\n";
-} 
-echo "\nCreated streem socket server. Go to wait loop.\n";
 echo "\nWe'll send";
 if($filtering) echo " only ".implode(',',$filtering);
 if($noFiltering) echo " except (some) ".implode(',',array_keys($noFiltering));
@@ -136,17 +137,24 @@ if($updTime) echo " correcting the time of message creation to now";
 if(is_numeric($updTime)) echo " plus $updTime sec.";
 if($updCourse) echo ", with setting the 'Track made good' of RMC sentences as the bearing from the previous point";
 if($updSpeed) echo ", with setting the 'Speed over ground' of RMC sentences to ".round($updSpeed/1.852,2)." knots if it's near zero";
-if($saveSentences) echo " and with writing sentences to $saveSentences";
 if(isset($wind)) {
 	echo " with ";
 	if($windTrue=='T') echo "true wind";
 	else echo "apparent wind";
 	echo " from {$wind[0]}, {$wind[1]} m/sec";
 }
+if($SARTdata) echo ", with adding AIS SART sentences for points from the $SARTdataFile file";
+if($saveSentences) echo " and with writing sentences to $saveSentences";
 echo ".\n\n";
 
+$socket = stream_socket_server($bindAddres, $errno, $errstr);
+if (!$socket) {
+  return "$errstr ($errno)\n";
+} 
+echo "\nCreated streem socket server. Go to wait loop.\n";
 echo "Wait for first connection on $bindAddres";
-$conn = stream_socket_accept($socket,-1);	// -1 -- бесконечно ждать соединения
+//$conn = stream_socket_accept($socket,-1);	// -1 -- бесконечно ждать соединения, как это указано в https://www.php.net/manual/en/filesystem.configuration.php#ini.default-socket-timeout, но в OpenWRT -1 - это -1, и она меньше, и оно не ждёт.
+$conn = stream_socket_accept($socket,600);	// 
 
 $nStr = 0; 	// number of sending string
 $statSend = 0;
@@ -172,7 +180,7 @@ $windCount = $windDeviationPeriod;
 $windAngle = null;
 $depthCount = $depthDeviationPeriod;
 while ($conn) { 	// 
-	foreach($handles as $i => $handle) {
+	foreach($handles as $i => $handle) {	// для каждого указанного файла строк NMEA
 		if(($run AND ((time()-$startAllTime)>$run))) {
 			foreach($handles as $handle) {
 				fclose($handle);
@@ -197,7 +205,7 @@ while ($conn) { 	//
 					if($saveSentences) fclose($sentencesfh);
 				}
 			}
-			continue;
+			continue;	// к следующему файлу
 		}
 		
 		$NMEAtype = substr($nmeaData,3,3);
@@ -379,10 +387,8 @@ while ($conn) { 	//
 			break;
 		*/
 		default:
-		}
-		
-		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
-		
+		};
+		if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту, если проблема - прекратим работу
 
 		if($windAngle){	// добавим ветер после отсылки каждого сообщения RMC
 			
@@ -470,7 +476,30 @@ while ($conn) { 	//
 			$depthCount--;
 			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
 			
-		}
+		};
+		
+		// добавим сообщения AIS SART раз в минуту пачками по 8 штук для каждой точки,
+		// по точке за оборот
+		if($SARTdata and ((time()-$lastSARTsended)>=60)){	
+			$SARTpoint = array_shift($SARTpoints);
+			//echo "SARTpoint=$SARTpoint                      \n";
+			//print_r($SARTpoints);
+			if($SARTpoint) {	// есть точка для отсылки
+				//echo "SARTpoint=$SARTpoint;                         \n"; 
+				//print_r($SARTdata[$SARTpoint]);
+				$AISsentencies = toAISphrases($SARTdata[$SARTpoint],'TPV','SART');
+				for($i=0; $i<8; $i++){
+					foreach($AISsentencies as $AISsentencie){
+						//echo "SART AISsentencie=$AISsentencie;\n";
+						if( !sendNMEA($AISsentencie)) break;	// отошлём сообщение NMEA клиенту
+					};
+				};
+			}
+			else{	// назначим новую паузу
+				$lastSARTsended = time();
+				$SARTpoints = array_keys($SARTdata);	// массив mmsi
+			};
+		};
 
 		/*
 		// Периодически будем показывать, какие сентенции были
@@ -544,7 +573,7 @@ if($res===FALSE) {
 	echo "Error write to socket. Break connection\n";
 	fclose($conn);
 	echo "Try to reopen\n";
-	$conn = stream_socket_accept($socket,-1);
+	$conn = stream_socket_accept($socket,10);
 	if(!$conn) {
 		echo "Reopen false\n";
 		return false;
