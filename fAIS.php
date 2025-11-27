@@ -9,6 +9,8 @@ function mk_ais_lon($lon,$mes=10000)	Делает AIS представление
 mk_ais_rot($rot)	заглушка
 char2bin($name, $max_len)	Кодирование строк
 mk_ais($_enc, $_part=1,$_total=1,$_seq='',$_ch='A')	Здесь только формирование самого сообщения: кодирование и контрольная сумма
+
+rus2translit($string)	транслитерация русских букв
 */
 
 function getAISData($aisDatesKeys=null){
@@ -382,6 +384,7 @@ function char2bin($name, $max_len) {
 /* Кодирование строк.
 В разных полях строки разной длины, и здесь дополняются @
  */
+$name = strtoupper(rus2translit($name));
 $len = strlen($name);
 if ($len > $max_len) $name = substr($name,0,$max_len);
 if ($len < $max_len) $pad = str_repeat('0', ($max_len - $len) * 6);
@@ -455,5 +458,34 @@ else $msbc = '0';
 $itu = '!'.$itu."*{$msbc}{$lsbc}\r\n";
 return $itu;
 }; // end function mk_ais
+
+function rus2translit($string) {
+$converter = array(
+'а' => 'a',   'б' => 'b',   'в' => 'v',
+'г' => 'g',   'д' => 'd',   'е' => 'e',
+'ё' => 'e',   'ж' => 'zh',  'з' => 'z',
+'и' => 'i',   'й' => 'y',   'к' => 'k',
+'л' => 'l',   'м' => 'm',   'н' => 'n',
+'о' => 'o',   'п' => 'p',   'р' => 'r',
+'с' => 's',   'т' => 't',   'у' => 'u',
+'ф' => 'f',   'х' => 'h',   'ц' => 'c',
+'ч' => 'ch',  'ш' => 'sh',  'щ' => 'sch',
+'ь' => '\'',  'ы' => 'y',   'ъ' => '\'',
+'э' => 'e',   'ю' => 'yu',  'я' => 'ya',
+
+'А' => 'A',   'Б' => 'B',   'В' => 'V',
+'Г' => 'G',   'Д' => 'D',   'Е' => 'E',
+'Ё' => 'E',   'Ж' => 'Zh',  'З' => 'Z',
+'И' => 'I',   'Й' => 'Y',   'К' => 'K',
+'Л' => 'L',   'М' => 'M',   'Н' => 'N',
+'О' => 'O',   'П' => 'P',   'Р' => 'R',
+'С' => 'S',   'Т' => 'T',   'У' => 'U',
+'Ф' => 'F',   'Х' => 'H',   'Ц' => 'C',
+'Ч' => 'Ch',  'Ш' => 'Sh',  'Щ' => 'Sch',
+'Ь' => '\'',  'Ы' => 'Y',   'Ъ' => '\'',
+'Э' => 'E',   'Ю' => 'Yu',  'Я' => 'Ya'
+);
+return strtr($string, $converter);
+}; 	// end function rus2translit
 
 ?>

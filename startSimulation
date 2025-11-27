@@ -56,7 +56,7 @@ gpsd -G -n tcp://localhost:2222
 echo "netAISclient starting..."
 pkill -f eqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion
 cd $DIRprefix/netAIS
-#$php netAISclient.php -seqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion > /dev/null 2>&1 &
+$php netAISclient.php -seqavt5cdur7vbzoejquiwviok4tfexy32sggxdxujm75uiljqi5g27ad.onion > /dev/null 2>&1 &
 sleep 1
 
 
@@ -70,6 +70,6 @@ echo "inetAIS starting..."
 # Но проще так:
 pkill -f inetAIS.php
 cd  $BASEDIR
-#$DIRprefix/digitraffic/start -d
+$DIRprefix/digitraffic/start -d
 
 echo "Simulation started. Probably."

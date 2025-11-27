@@ -17,6 +17,9 @@ $ php naiveNMEAdaemon.php sample1.log
 gpsd run to connect this:
 $ gpsd -N -n tcp://192.168.10.10:2222
 */
+ini_set('error_reporting', E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED);
+//ini_set('error_reporting', E_ALL & ~E_STRICT & ~E_DEPRECATED);
+
 $windSpeedDelta = 1.5;	// 
 $windDirDelta = 10;	// 
 $windDeviation = 0.4;
@@ -84,7 +87,7 @@ if(isset($options['wind'])){
 	if(count($wind)<2) $wind = array(0.0,10.0);	// ветер северный
 	$userWind=$wind;
 	if($wind[2]) $windDeviation = $wind[2];
-	if($wind[3]=='T') $windTrue = 'T';
+	if(@$wind[3]=='T') $windTrue = 'T';
 	else $windTrue = 'R';
 }
 if(isset($options['depth'])){
@@ -143,7 +146,7 @@ if(isset($wind)) {
 	else echo "apparent wind";
 	echo " from {$wind[0]}, {$wind[1]} m/sec";
 }
-if($SARTdata) echo ", with adding AIS SART sentences for points from the $SARTdataFile file";
+if(@$SARTdata) echo ", with adding AIS SART sentences for points from the $SARTdataFile file";
 if($saveSentences) echo " and with writing sentences to $saveSentences";
 echo ".\n\n";
 
@@ -179,6 +182,7 @@ $enought = array();
 $windCount = $windDeviationPeriod;
 $windAngle = null;
 $depthCount = $depthDeviationPeriod;
+$lastSARTsended = 0;
 while ($conn) { 	// 
 	foreach($handles as $i => $handle) {	// для каждого указанного файла строк NMEA
 		if(($run AND ((time()-$startAllTime)>$run))) {
@@ -433,17 +437,17 @@ while ($conn) { 	//
 				$windCount = $windDeviationPeriod;
 			}
 			//echo "wind direction {$wind[0]}; wind speed {$wind[1]};      \n";
-			if($windTrue)
+
 			// Это баг gpsd: N вместо М и скорости в м/сек.
 			// м/сек gpsd вообще не понимает? Во всяком случает, оно работает правильно, если
 			// указать N и скорость в узлах.
 			//$nmeaData = "\$WIMWV,$windAngle,R,".($wind[1]*1.943844494).",N,A";
 			//$nmeaData = "\$WIMWV,$windAngle,T,".($wind[1]*1.943844494).",N,A";
-			//$nmeaData = "\$WIMWV,$windAngle,$windTrue,".($wind[1]*1.943844494).",N,A";
+			$nmeaData = "\$WIMWV,$windAngle,$windTrue,".($wind[1]*1.943844494).",N,A";
 			// Правильное выражение:	
 			//$nmeaData = "\$WIMWV,$windAngle,R,{$wind[1]},M,A";	
 			//$nmeaData = "\$WIMWV,$windAngle,T,{$wind[1]},M,A";	
-			$nmeaData = "\$WIMWV,$windAngle,$windTrue,{$wind[1]},M,A";	
+			//$nmeaData = "\$WIMWV,$windAngle,$windTrue,{$wind[1]},M,A";	
 			$nmeaData .= '*'.NMEAchecksumm($nmeaData);
 			$windCount--;
 			if( !sendNMEA($nmeaData)) break;	// отошлём сообщение NMEA клиенту
@@ -480,12 +484,13 @@ while ($conn) { 	//
 		
 		// добавим сообщения AIS SART раз в минуту пачками по 8 штук для каждой точки,
 		// по точке за оборот
-		if($SARTdata and ((time()-$lastSARTsended)>=60)){	
+		if(@$SARTdata and ((time()-$lastSARTsended)>=60)){	
 			$SARTpoint = array_shift($SARTpoints);
 			//echo "SARTpoint=$SARTpoint                      \n";
 			//print_r($SARTpoints);
 			if($SARTpoint) {	// есть точка для отсылки
 				//echo "SARTpoint=$SARTpoint;                         \n"; 
+				$SARTdata[$SARTpoint]['timestamp'] = time();
 				//print_r($SARTdata[$SARTpoint]);
 				$AISsentencies = toAISphrases($SARTdata[$SARTpoint],'TPV','SART');
 				for($i=0; $i<8; $i++){
@@ -523,7 +528,6 @@ while ($conn) { 	//
 foreach($handles as $handle) {
 	fclose($handle);
 }
-@fclose($conn);
 fclose($socket);
 if($saveSentences) @fclose($sentencesfh);
 
