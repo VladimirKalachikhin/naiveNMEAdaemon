@@ -385,7 +385,7 @@ function char2bin($name, $max_len) {
 В разных полях строки разной длины, и здесь дополняются @
  */
 $name = strtoupper(rus2translit($name));
-$len = strlen($name);
+$len = mb_strlen($name,'8bit');
 if ($len > $max_len) $name = substr($name,0,$max_len);
 if ($len < $max_len) $pad = str_repeat('0', ($max_len - $len) * 6);
 else $pad = '';
@@ -418,13 +418,13 @@ function mk_ais($_enc, $_part=1,$_total=1,$_seq='',$_ch='A') {
 $_enc строка бит всех полей сообщения
 $_seq	sequential message ID for multi-sentence messages
 */
-$len_bit = strlen($_enc);
+$len_bit = mb_strlen($_enc,'8bit');
 $rem6 = $len_bit % 6;
 $pad6_len = 0;
 if ($rem6) $pad6_len = 6 - $rem6;
 //echo  $pad6_len.'<br>';
 $_enc .= str_repeat("0", $pad6_len); // pad the text...
-$len_enc = strlen($_enc) / 6;
+$len_enc = mb_strlen($_enc,'8bit') / 6;
 //echo $_enc.' '.$len_enc.'<br/>';
 
 $itu = '';
@@ -442,7 +442,7 @@ for ($i=0; $i<$len_enc; $i++) {
 $chksum = 0;
 $itu = "AIVDM,$_part,$_total,$_seq,$_ch,".$itu.",0";
 
-$len_itu = strlen($itu);
+$len_itu = mb_strlen($itu,'8bit');
 for ($i=0; $i<$len_itu; $i++) {
 	$chksum ^= ord( $itu[$i] );
 }

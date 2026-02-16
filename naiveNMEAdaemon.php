@@ -120,7 +120,6 @@ if(!$argv[1] or array_key_exists('h',$options) or array_key_exists('help',$optio
 }
 
 
-$strLen = 0;
 $r = array("|","/","-","\\");
 $ri = 0;
 $startAllTime = time();
@@ -535,7 +534,7 @@ function statCollect($nmeaData) {
 /**/
 global $statCollection;
 $nmeaData1 = substr(trim(str_getcsv($nmeaData)[0]),-3);
-//if(strlen($nmeaData1)<3) echo "\n$nmeaData\n";
+//if(mb_strlen($nmeaData1,'8bit')<3) echo "\n$nmeaData\n";
 @$statCollection["$nmeaData1"]++;	// при отсутствии ключа оно выдаёт предупреждение, поэтому @
 /*
 if(strpos($nmeaData,'ALM')!==FALSE) $statCollection['ALM']++;
@@ -602,7 +601,7 @@ function NMEAchecksumm($nmea){
 /**/
 if(!(is_string($nmea) and $nmea[0]=='$')) return FALSE; 	// only not AIS NMEA string
 $checksum = 0;
-for($i = 1; $i < strlen($nmea); $i++){
+for($i = 1; $i < mb_strlen($nmea,'8bit'); $i++){
 	if($nmea[$i]=='*') break;
 	$checksum ^= ord($nmea[$i]);
 }
